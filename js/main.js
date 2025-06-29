@@ -47,6 +47,11 @@ class LocalFolderGallery {
     bindEvents() {
         // 文件夹选择
         this.folderInput.addEventListener('change', (e) => {
+            // 如果图片查看器正在显示，则忽略文件夹选择事件
+            if (this.imageViewer && this.imageViewer.isOpen) {
+                console.log('🐱 nya~ 图片查看器打开中，忽略文件夹选择事件');
+                return;
+            }
             this.handleFolderSelection(e.target.files);
         });
 
@@ -104,6 +109,12 @@ class LocalFolderGallery {
         // 选择状态改变回调
         this.exportManager.setSelectionChangeCallback((selectedCount) => {
             this.updateSelectedCount(selectedCount);
+        });
+
+        // 监听图片查看器中的选择状态改变
+        document.addEventListener('imageSelectionChanged', (e) => {
+            const changedImage = e.detail.image;
+            this.updateImageItemUI(changedImage);
         });
     }
 
@@ -387,6 +398,12 @@ class LocalFolderGallery {
         });
 
         dropZone.addEventListener('drop', (e) => {
+            // 如果图片查看器正在显示，则忽略拖拽文件夹事件
+            if (this.imageViewer && this.imageViewer.isOpen) {
+                console.log('🐱 nya~ 图片查看器打开中，忽略拖拽文件夹事件');
+                return;
+            }
+
             const files = Array.from(e.dataTransfer.files);
             
             if (files.length > 0) {
@@ -466,6 +483,26 @@ class LocalFolderGallery {
             } else {
                 this.fileStats.title = `所有文件都是支持的图片格式\n支持格式: JPG, PNG, GIF, WebP`;
             }
+        }
+    }
+
+    // 更新指定图片项的UI状态
+    updateImageItemUI(changedImage) {
+        const imageItem = document.getElementById(`item_${changedImage.id}`);
+        if (!imageItem) return;
+
+        const checkbox = imageItem.querySelector(`#checkbox_${changedImage.id}`);
+        if (checkbox) {
+            checkbox.checked = changedImage.selected;
+            
+            // 更新视觉状态
+            if (changedImage.selected) {
+                imageItem.classList.add('selected');
+            } else {
+                imageItem.classList.remove('selected');
+            }
+            
+            console.log(`🐱 nya~ 图片UI状态已同步: ${changedImage.name} - ${changedImage.selected ? '已选择' : '未选择'}`);
         }
     }
 

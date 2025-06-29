@@ -42,6 +42,14 @@ class ImageViewer {
             }
         });
 
+        // 阻止modal区域的拖拽事件，防止意外触发文件选择
+        ['dragenter', 'dragover', 'dragleave', 'drop', 'dragstart'].forEach(eventName => {
+            this.modal.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
         // 导航按钮
         this.prevBtn.addEventListener('click', () => this.showPrevious());
         this.nextBtn.addEventListener('click', () => this.showNext());
@@ -82,13 +90,35 @@ class ImageViewer {
         this.modalImage.addEventListener('error', () => {
             this.modalImage.src = this.createErrorImage();
         });
+
+        // 阻止图片的拖拽行为，防止意外触发文件选择
+        this.modalImage.addEventListener('dragstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        this.modalImage.addEventListener('drag', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        this.modalImage.addEventListener('dragend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
     }
 
     // 显示图片
     show(images, startIndex = 0) {
+        console.log('🐱 nya~ 图片查看器正在打开，启用文件夹选择保护');
         this.currentImages = images;
         this.currentIndex = startIndex;
         this.isOpen = true;
+
+        // 重置缩放状态 - 每次进入都是初始状态
+        if (this.resetZoomState) {
+            this.resetZoomState();
+        }
 
         this.updateImage();
         this.updateNavigation();
@@ -104,6 +134,7 @@ class ImageViewer {
 
     // 关闭弹窗
     close() {
+        console.log('🐱 nya~ 图片查看器正在关闭，解除文件夹选择保护');
         this.isOpen = false;
         this.modal.classList.remove('show');
         this.modal.style.display = 'none';
@@ -144,6 +175,10 @@ class ImageViewer {
         // 加载图片
         this.modalImage.onload = () => {
             this.modalImage.style.opacity = '1';
+            // 切换图片时重置缩放状态
+            if (this.resetZoomState) {
+                this.resetZoomState();
+            }
         };
         
         this.modalImage.src = currentImage.url;
@@ -198,6 +233,8 @@ class ImageViewer {
         
         // 触发选择状态改变事件
         this.dispatchSelectionChangeEvent(currentImage);
+        
+        console.log(`🐱 nya~ 查看器中选择状态已更新: ${currentImage.name} - ${selected ? '已选择' : '未选择'}`);
     }
 
     // 触发选择状态改变事件
@@ -232,9 +269,23 @@ class ImageViewer {
 
     // 添加缩放功能
     enableZoom() {
+        // 当前缩放状态 - 每次进入都重置
         let scale = 1;
+        let translateX = 0;
+        let translateY = 0;
         let isDragging = false;
-        let startX, startY, translateX = 0, translateY = 0;
+        let startX, startY;
+
+        // 重置缩放状态
+        const resetZoomState = () => {
+            scale = 1;
+            translateX = 0;
+            translateY = 0;
+            this.updateImageTransform(scale, translateX, translateY);
+        };
+
+        // 保存重置方法供外部调用
+        this.resetZoomState = resetZoomState;
 
         // 鼠标滚轮缩放
         this.modalImage.addEventListener('wheel', (e) => {
@@ -250,15 +301,16 @@ class ImageViewer {
         });
 
         // 双击重置
-        this.modalImage.addEventListener('dblclick', () => {
-            scale = 1;
-            translateX = 0;
-            translateY = 0;
-            this.updateImageTransform(scale, translateX, translateY);
+        this.modalImage.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            resetZoomState();
         });
 
         // 拖拽移动（仅在缩放时）
         this.modalImage.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             if (scale > 1) {
                 isDragging = true;
                 startX = e.clientX - translateX;
