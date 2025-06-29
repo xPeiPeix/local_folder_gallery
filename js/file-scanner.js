@@ -7,6 +7,11 @@ class FileScanner {
         this.onCompleteCallback = null;
         this.onIncrementalCallback = null; // 增量加载回调
         this.batchSize = 5; // 每批处理的图片数量
+        
+        // 性能优化配置
+        this.maxThumbnailCache = 200; // 最大缓存缩略图数量
+        this.thumbnailCache = new Map(); // LRU缓存
+        this.memoryUsageLimit = 100 * 1024 * 1024; // 100MB内存限制
     }
 
     // 设置进度回调
@@ -68,8 +73,19 @@ class FileScanner {
         });
     }
 
-    // 创建缩略图 - 优化画质版本
-    createThumbnail(file, maxWidth = 400, maxHeight = 300) {
+    // 创建缩略图 - 内存优化版本
+    createThumbnail(file, maxWidth = 320, maxHeight = 240) {
+        const cacheKey = `${file.name}_${file.size}_${file.lastModified}`;
+        
+        // 检查缓存
+        if (this.thumbnailCache.has(cacheKey)) {
+            const cached = this.thumbnailCache.get(cacheKey);
+            // LRU: 移到最后
+            this.thumbnailCache.delete(cacheKey);
+            this.thumbnailCache.set(cacheKey, cached);
+            return Promise.resolve(cached);
+        }
+
         return new Promise((resolve) => {
             const img = new Image();
             const canvas = document.createElement('canvas');
@@ -77,39 +93,50 @@ class FileScanner {
             const url = URL.createObjectURL(file);
 
             img.onload = () => {
-                // 计算缩略图尺寸，保持高分辨率
-                let { width, height } = img;
-                
-                if (width > height) {
-                    if (width > maxWidth) {
-                        height = (height * maxWidth) / width;
-                        width = maxWidth;
+                try {
+                    // 计算缩略图尺寸 - 适中分辨率平衡画质和内存
+                    let { width, height } = img;
+                    
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height = (height * maxWidth) / width;
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width = (width * maxHeight) / height;
+                            height = maxHeight;
+                        }
                     }
-                } else {
-                    if (height > maxHeight) {
-                        width = (width * maxHeight) / height;
-                        height = maxHeight;
-                    }
-                }
 
-                // 使用设备像素比提高清晰度
-                const dpr = window.devicePixelRatio || 1;
-                canvas.width = width * dpr;
-                canvas.height = height * dpr;
-                canvas.style.width = width + 'px';
-                canvas.style.height = height + 'px';
-                
-                // 设置高质量绘制
-                ctx.scale(dpr, dpr);
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                
-                // 绘制缩略图
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                URL.revokeObjectURL(url);
-                // 使用PNG格式避免JPEG压缩损失，或使用更高质量的JPEG
-                resolve(canvas.toDataURL('image/png'));
+                    // 保持合理的画质，不使用过高的DPR
+                    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                    canvas.width = width * dpr;
+                    canvas.height = height * dpr;
+                    canvas.style.width = width + 'px';
+                    canvas.style.height = height + 'px';
+                    
+                    // 高质量绘制
+                    ctx.scale(dpr, dpr);
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    
+                    // 绘制缩略图
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 使用JPEG格式减少内存占用，质量90%
+                    const thumbnail = canvas.toDataURL('image/jpeg', 0.9);
+                    
+                    // 缓存管理
+                    this.manageThumbnailCache(cacheKey, thumbnail);
+                    
+                    resolve(thumbnail);
+                } catch (error) {
+                    console.warn('缩略图生成失败:', error);
+                    resolve(null);
+                } finally {
+                    URL.revokeObjectURL(url);
+                }
             };
 
             img.onerror = () => {
@@ -121,21 +148,46 @@ class FileScanner {
         });
     }
 
+    // 管理缩略图缓存 - LRU机制
+    manageThumbnailCache(key, thumbnail) {
+        // 清理超出限制的缓存
+        while (this.thumbnailCache.size >= this.maxThumbnailCache) {
+            const firstKey = this.thumbnailCache.keys().next().value;
+            this.thumbnailCache.delete(firstKey);
+        }
+        
+        this.thumbnailCache.set(key, thumbnail);
+    }
+
     // 处理文件夹 - 增量加载版本
     async scanFolder(files) {
         this.imageFiles = [];
         const totalFiles = files.length;
+        this.totalFilesScanned = totalFiles; // 保存总文件数
         let processedFiles = 0;
         let batchCount = 0;
         const currentBatch = [];
 
-        // 调用进度回调
-        if (this.onProgressCallback) {
-            this.onProgressCallback(0, totalFiles);
-        }
-
         // 过滤出图片文件
         const imageFiles = Array.from(files).filter(file => this.isImageFile(file));
+        const imageFileCount = imageFiles.length;
+        const imagePercentage = totalFiles > 0 ? Math.round((imageFileCount / totalFiles) * 100) : 0;
+        this.fileStatistics = { // 保存统计信息
+            totalFiles: totalFiles,
+            imageFiles: imageFileCount,
+            percentage: imagePercentage,
+            nonImageFiles: totalFiles - imageFileCount
+        };
+
+        // 调用进度回调，包含统计信息
+        if (this.onProgressCallback) {
+            this.onProgressCallback(0, totalFiles, {
+                totalFiles: totalFiles,
+                imageFiles: imageFileCount,
+                percentage: imagePercentage,
+                nonImageFiles: totalFiles - imageFileCount
+            });
+        }
         
         for (let i = 0; i < imageFiles.length; i++) {
             const file = imageFiles[i];
@@ -169,7 +221,12 @@ class FileScanner {
                 
                 // 更新进度
                 if (this.onProgressCallback) {
-                    this.onProgressCallback(processedFiles, imageFiles.length);
+                    this.onProgressCallback(processedFiles, imageFiles.length, {
+                        totalFiles: totalFiles,
+                        imageFiles: imageFileCount,
+                        percentage: imagePercentage,
+                        nonImageFiles: totalFiles - imageFileCount
+                    });
                 }
 
                 // 增量回调 - 每处理完一批就通知UI更新
@@ -216,14 +273,48 @@ class FileScanner {
         return this.imageFiles;
     }
 
-    // 清理资源
+    // 清理资源 - 增强版
     cleanup() {
+        // 清理所有URL对象
         this.imageFiles.forEach(img => {
             if (img.url) {
                 URL.revokeObjectURL(img.url);
             }
         });
+        
+        // 清理缓存
+        this.thumbnailCache.clear();
+        
+        // 重置数据
         this.imageFiles = [];
+        this.totalFilesScanned = 0;
+        this.fileStatistics = null;
+        
+        // 强制垃圾回收提示 (仅在开发环境或特定浏览器)
+        if (window.gc) {
+            window.gc();
+        }
+    }
+
+    // 获取内存使用估算
+    getMemoryUsageEstimate() {
+        const thumbnailCount = this.thumbnailCache.size;
+        const avgThumbnailSize = 120 * 1024; // 估算每个JPEG缩略图120KB (320x240, 90%质量)
+        const thumbnailMemory = thumbnailCount * avgThumbnailSize;
+        const objectMemory = this.imageFiles.length * 2048; // 每个对象约2KB
+        
+        return {
+            thumbnailMemory: thumbnailMemory,
+            objectMemory: objectMemory,
+            totalMemory: thumbnailMemory + objectMemory,
+            thumbnailCount: thumbnailCount,
+            imageCount: this.imageFiles.length,
+            formatted: {
+                thumbnail: this.formatFileSize(thumbnailMemory),
+                object: this.formatFileSize(objectMemory),
+                total: this.formatFileSize(thumbnailMemory + objectMemory)
+            }
+        };
     }
 
     // 排序图片

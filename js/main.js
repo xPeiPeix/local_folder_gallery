@@ -22,6 +22,9 @@ class LocalFolderGallery {
         
         // 启用图片查看器缩放功能
         this.imageViewer.enableZoom();
+        
+        // 初始化内存监控
+        this.initMemoryMonitor();
     }
 
     // 初始化UI元素
@@ -31,6 +34,7 @@ class LocalFolderGallery {
         this.imageGrid = document.getElementById('imageGrid');
         this.imageCount = document.getElementById('imageCount');
         this.selectedCount = document.getElementById('selectedCount');
+        this.fileStats = document.getElementById('fileStats');
         this.selectAllBtn = document.getElementById('selectAllBtn');
         this.deselectAllBtn = document.getElementById('deselectAllBtn');
         this.exportBtn = document.getElementById('exportBtn');
@@ -83,8 +87,8 @@ class LocalFolderGallery {
     // 设置回调函数
     setupCallbacks() {
         // 文件扫描进度回调
-        this.fileScanner.setProgressCallback((current, total) => {
-            this.updateLoadingProgress(current, total);
+        this.fileScanner.setProgressCallback((current, total, stats) => {
+            this.updateLoadingProgress(current, total, stats);
         });
 
         // 文件扫描完成回调
@@ -155,6 +159,11 @@ class LocalFolderGallery {
         this.updateImageCount(this.allImages.length);
         this.updateLoadingProgress(processed, total);
         
+        // 如果是第一批，更新文件统计信息
+        if (this.allImages.length === newImages.length && this.fileScanner.fileStatistics) {
+            this.updateFileStats(this.fileScanner.fileStatistics);
+        }
+        
         // 增量添加符合筛选条件的图片到网格
         if (filteredNewImages.length > 0) {
             this.appendImagesToGrid(filteredNewImages);
@@ -180,7 +189,17 @@ class LocalFolderGallery {
         if (this.allImages.length === 0) {
             this.showEmptyState();
         } else {
-            this.showMessage(`成功加载 ${this.allImages.length} 张图片`, 'success');
+            // 获取内存使用信息
+            const memoryInfo = this.fileScanner.getMemoryUsageEstimate();
+            this.showMessage(
+                `成功加载 ${this.allImages.length} 张图片 | 内存占用约 ${memoryInfo.formatted.total}`, 
+                'success'
+            );
+            
+            // 内存使用警告
+            if (memoryInfo.totalMemory > 200 * 1024 * 1024) { // 超过200MB
+                this.showMessage(`⚠️ 内存占用较高 (${memoryInfo.formatted.total})，建议分批处理大文件夹`, 'warning');
+            }
             
             // 完成后重新应用排序和筛选
             this.applySortAndFilter();
@@ -392,15 +411,28 @@ class LocalFolderGallery {
     }
 
     // 更新加载进度
-    updateLoadingProgress(current, total) {
+    updateLoadingProgress(current, total, stats) {
         const progressText = this.loadingIndicator.querySelector('p');
-        if (progressText) {
-            if (this.allImages.length > 0) {
-                // 增量加载中，显示已加载的图片数
-                progressText.textContent = `正在扫描文件夹... 已加载 ${this.allImages.length} 张图片 (${current}/${total})`;
+        if (progressText && stats) {
+            let message = `正在扫描文件夹... `;
+            
+            if (current === 0) {
+                // 初始统计信息
+                message += `发现 ${stats.imageFiles} 张图片 / ${stats.totalFiles} 个文件 (${stats.percentage}%)`;
+                if (stats.nonImageFiles > 0) {
+                    message += ` | 跳过 ${stats.nonImageFiles} 个非图片文件`;
+                }
+            } else if (this.allImages.length > 0) {
+                // 增量加载中
+                message += `已处理 ${this.allImages.length} 张图片 (${current}/${stats.imageFiles}) | 图片占比 ${stats.percentage}%`;
             } else {
-                progressText.textContent = `正在扫描文件夹... (${current}/${total})`;
+                message += `(${current}/${total}) | 图片文件: ${stats.imageFiles} (${stats.percentage}%)`;
             }
+            
+            progressText.textContent = message;
+        } else if (progressText) {
+            // 兼容旧版本调用
+            progressText.textContent = `正在扫描文件夹... (${current}/${total})`;
         }
     }
 
@@ -422,6 +454,21 @@ class LocalFolderGallery {
         this.exportBtn.disabled = count === 0;
     }
 
+    // 更新文件统计信息
+    updateFileStats(stats) {
+        if (stats && this.fileStats) {
+            this.fileStats.style.display = 'inline';
+            this.fileStats.textContent = `图片占比: ${stats.percentage}% (${stats.imageFiles}/${stats.totalFiles})`;
+            
+            // 如果有非图片文件，添加到标题提示中
+            if (stats.nonImageFiles > 0) {
+                this.fileStats.title = `图片文件: ${stats.imageFiles} 个\n非图片文件: ${stats.nonImageFiles} 个\n支持格式: JPG, PNG, GIF, WebP`;
+            } else {
+                this.fileStats.title = `所有文件都是支持的图片格式\n支持格式: JPG, PNG, GIF, WebP`;
+            }
+        }
+    }
+
     // 清空之前的数据
     clearPreviousData() {
         // 清理文件扫描器
@@ -438,6 +485,11 @@ class LocalFolderGallery {
         this.imageGrid.innerHTML = '';
         this.updateImageCount(0);
         this.updateSelectedCount(0);
+        
+        // 隐藏文件统计
+        if (this.fileStats) {
+            this.fileStats.style.display = 'none';
+        }
         
         // 重置搜索和筛选状态
         this.searchInput.value = '';
@@ -495,6 +547,63 @@ class LocalFolderGallery {
     // 显示消息
     showMessage(message, type = 'info') {
         this.exportManager.showMessage(message, type);
+    }
+
+    // 开发者工具 - 内存监控 (在构造函数中调用)
+    initMemoryMonitor() {
+        // 仅在开发环境或URL包含debug参数时启用
+        const isDebugMode = window.location.search.includes('debug=true') || 
+                           window.location.hostname === 'localhost';
+        
+        if (!isDebugMode) return;
+
+        // 添加内存监控快捷键 Ctrl+M
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'm') {
+                e.preventDefault();
+                this.showMemoryInfo();
+            }
+        });
+
+        // 定期内存检查 (每30秒)
+        setInterval(() => {
+            const memoryInfo = this.fileScanner.getMemoryUsageEstimate();
+            if (memoryInfo.totalMemory > 300 * 1024 * 1024) { // 超过300MB
+                console.warn('🐱 nya~ 内存使用警告:', memoryInfo.formatted.total);
+            }
+        }, 30000);
+
+        console.log('🐱 nya~ 内存监控已启用! 按 Ctrl+M 查看内存使用详情');
+    }
+
+    // 显示内存使用详情
+    showMemoryInfo() {
+        const memoryInfo = this.fileScanner.getMemoryUsageEstimate();
+        
+        console.group('🐱 nya~ 内存使用详情');
+        console.log('缩略图内存:', memoryInfo.formatted.thumbnail);
+        console.log('对象内存:', memoryInfo.formatted.object);
+        console.log('总内存:', memoryInfo.formatted.total);
+        console.log('缩略图缓存数量:', memoryInfo.thumbnailCount);
+        console.log('图片对象数量:', memoryInfo.imageCount);
+        
+        // 浏览器内存API (如果可用)
+        if (performance.memory) {
+            const browserMemory = performance.memory;
+            console.log('浏览器内存使用:', {
+                used: Math.round(browserMemory.usedJSHeapSize / 1024 / 1024) + 'MB',
+                total: Math.round(browserMemory.totalJSHeapSize / 1024 / 1024) + 'MB',
+                limit: Math.round(browserMemory.jsHeapSizeLimit / 1024 / 1024) + 'MB'
+            });
+        }
+        
+        console.groupEnd();
+        
+        // 在UI中显示
+        this.showMessage(
+            `内存使用: ${memoryInfo.formatted.total} | 缓存: ${memoryInfo.thumbnailCount} 张`, 
+            'info'
+        );
     }
 }
 
