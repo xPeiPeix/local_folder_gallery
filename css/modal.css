@@ -1,0 +1,264 @@
+/* 弹窗基础样式 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(5px);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    transform: scale(0.9);
+    animation: scaleIn 0.3s ease-out forwards;
+}
+
+@keyframes scaleIn {
+    to { transform: scale(1); }
+}
+
+/* 弹窗头部 */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e9ecef;
+    background: #f8f9fa;
+}
+
+.modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.modal-close {
+    font-size: 28px;
+    font-weight: bold;
+    color: #aaa;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.modal-close:hover,
+.modal-close:focus {
+    color: #333;
+    background: #e9ecef;
+}
+
+/* 弹窗主体 */
+.modal-body {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(90vh - 140px);
+    overflow-y: auto;
+}
+
+.image-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    min-height: 400px;
+}
+
+.modal-body img {
+    max-width: 100%;
+    max-height: 500px;
+    object-fit: contain;
+    display: block;
+}
+
+/* 导航按钮 */
+.nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1001;
+}
+
+.nav-btn:hover {
+    background: white;
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.prev-btn {
+    left: 20px;
+}
+
+.next-btn {
+    right: 20px;
+}
+
+/* 图片信息区域 */
+.image-info {
+    padding: 24px;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+.info-row {
+    display: flex;
+    margin-bottom: 10px;
+    align-items: flex-start;
+}
+
+.info-row:last-child {
+    margin-bottom: 0;
+}
+
+.info-row strong {
+    min-width: 100px;
+    color: #495057;
+    font-weight: 600;
+}
+
+.info-row span {
+    color: #666;
+    word-break: break-all;
+    flex: 1;
+}
+
+/* 弹窗底部 */
+.modal-footer {
+    padding: 20px 24px;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+    
+    .modal-header,
+    .modal-footer {
+        padding: 16px;
+    }
+    
+    .image-info {
+        padding: 16px;
+    }
+    
+    .nav-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+    }
+    
+    .prev-btn {
+        left: 10px;
+    }
+    
+    .next-btn {
+        right: 10px;
+    }
+    
+    .info-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .info-row strong {
+        min-width: auto;
+    }
+    
+    .modal-footer {
+        flex-direction: column;
+    }
+    
+    .modal-footer .btn {
+        width: 100%;
+    }
+}
+
+/* 键盘导航提示 */
+.keyboard-hint {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* 缩放控制 */
+.zoom-controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+}
+
+.zoom-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.zoom-btn:hover {
+    background: white;
+    transform: scale(1.1);
+} 

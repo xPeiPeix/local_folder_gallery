@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地文件夹画廊 - Local Folder Gallery</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/modal.css">
+</head>
+<body>
+    <!-- 头部区域 -->
+    <header class="header">
+        <div class="container">
+            <h1 class="title">📁 本地文件夹画廊</h1>
+            <p class="subtitle">选择文件夹，浏览所有图片，批量导出收藏</p>
+        </div>
+    </header>
+
+    <!-- 控制面板 -->
+    <div class="control-panel">
+        <div class="container">
+            <div class="controls">
+                <!-- 文件夹选择 -->
+                <div class="file-selector">
+                    <input type="file" id="folderInput" webkitdirectory multiple accept="image/*" />
+                    <label for="folderInput" class="btn btn-primary">
+                        📂 选择文件夹
+                    </label>
+                </div>
+
+                <!-- 信息统计 -->
+                <div class="stats">
+                    <span id="imageCount">已加载: 0 张图片</span>
+                    <span id="selectedCount">已选择: 0 张</span>
+                </div>
+
+                <!-- 批量操作 -->
+                <div class="batch-actions">
+                    <button id="selectAllBtn" class="btn btn-secondary">全选</button>
+                    <button id="deselectAllBtn" class="btn btn-secondary">取消全选</button>
+                    <button id="exportBtn" class="btn btn-success" disabled>
+                        📦 导出选中 (ZIP)
+                    </button>
+                </div>
+            </div>
+
+            <!-- 筛选和排序 -->
+            <div class="filters">
+                <div class="filter-group">
+                    <label>排序方式:</label>
+                    <select id="sortSelect">
+                        <option value="name">文件名</option>
+                        <option value="size">文件大小</option>
+                        <option value="date">修改时间</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>文件类型:</label>
+                    <select id="typeFilter">
+                        <option value="all">全部类型</option>
+                        <option value="jpg">JPG</option>
+                        <option value="png">PNG</option>
+                        <option value="gif">GIF</option>
+                        <option value="webp">WebP</option>
+                    </select>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="搜索文件名..." />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载提示 -->
+    <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+        <div class="spinner"></div>
+        <p>正在扫描文件夹...</p>
+    </div>
+
+    <!-- 图片展示区域 -->
+    <main class="gallery-container">
+        <div class="container">
+            <div id="imageGrid" class="image-grid">
+                <!-- 图片项目将通过JavaScript动态生成 -->
+            </div>
+        </div>
+    </main>
+
+    <!-- 图片查看器弹窗 -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title" id="modalTitle">图片预览</span>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="image-container">
+                    <button class="nav-btn prev-btn" id="prevBtn">&#8249;</button>
+                    <img id="modalImage" src="" alt="预览图片" />
+                    <button class="nav-btn next-btn" id="nextBtn">&#8250;</button>
+                </div>
+                <div class="image-info">
+                    <div class="info-row">
+                        <strong>文件名:</strong> <span id="infoName"></span>
+                    </div>
+                    <div class="info-row">
+                        <strong>文件大小:</strong> <span id="infoSize"></span>
+                    </div>
+                    <div class="info-row">
+                        <strong>图片尺寸:</strong> <span id="infoDimensions"></span>
+                    </div>
+                    <div class="info-row">
+                        <strong>文件类型:</strong> <span id="infoType"></span>
+                    </div>
+                    <div class="info-row">
+                        <strong>文件路径:</strong> <span id="infoPath"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="addToSelectionBtn">添加到选择</button>
+                <button class="btn btn-secondary" id="removeFromSelectionBtn">从选择中移除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 脚本引入 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="js/file-scanner.js"></script>
+    <script src="js/image-viewer.js"></script>
+    <script src="js/export-manager.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html> 
